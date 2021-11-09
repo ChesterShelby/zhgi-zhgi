@@ -1,10 +1,18 @@
+from PIL import Image      # Нужно для ограничения разрешения изображения
+
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
+from django.urls import reverse
 
 
 User = get_user_model()
+
+
+def get_product_url(obj, view_name):
+    ct_model = obj.__class__._meta.model_name
+    return reverse(view_name, kwargs={'ct_model': ct_model, 'slug': obj.slug})
 
 
 class LatestProductsManager:
@@ -41,7 +49,20 @@ class Category(models.Model):
         return self.name
 
 
+# Нужно для ограничения разрешения изображения
+"""class MinResolutionErrorException(Exception):
+    pass
+
+
+class MaxResolutionErrorException(Exception):
+    pass"""
+
+
 class Product(models.Model):
+
+    MIN_RESOLUTION = (400, 400)
+    MAX_RESOLUTION = (4000, 4000)
+    MAX_IMAGE_SIZE = 10485760
 
     class Meta:
         abstract = True
@@ -56,23 +77,19 @@ class Product(models.Model):
     def __str__(self):
         return self.title
 
+    # Нужно для ограничения разрешения изображения
+    """
+    def save(self, *args, **kwargs):
 
-class Tshirt(Product):
-
-    size = models.CharField(max_length=255, verbose_name='Размер')
-    color = models.CharField(max_length=255, verbose_name='Цвет')
-
-    def __str__(self):
-        return "{} : {}".format(self.category.name, self.title)
-
-
-class Pin(Product):
-
-    size = models.CharField(max_length=255, verbose_name='Размер')
-    thematics = models.CharField(max_length=255, verbose_name='Тематика')
-
-    def __str__(self):
-        return "{} : {}".format(self.category.name, self.title)
+        image = self.image
+        img = Image.open(image)
+        min_widht, min_height = self.MIN_RESOLUTION
+        max_widht, max_height = self.MAX_RESOLUTION
+        if img.widht < min_widht or img.height < min_height:
+            raise MinResolutionErrorException('Разрешение изображения меньше минимального!')
+        if img.widht > max_widht or img.height > max_height:
+            raise MaxResolutionErrorException('Разрешение изображения больше максимального!')
+        super().save(*args, **kwargs)"""
 
 
 class CartProduct(models.Model):
@@ -109,3 +126,27 @@ class Customer(models.Model):
 
     def __str__(self):
         return "Покупатель: {} {}".format(self.user.first_name, self.user.last_name)
+
+
+class Tshirt(Product):
+
+    size = models.CharField(max_length=255, verbose_name='Размер')
+    color = models.CharField(max_length=255, verbose_name='Цвет')
+
+    def __str__(self):
+        return "{} : {}".format(self.category.name, self.title)
+
+    def get_absolut_url(self):
+        return get_product_url(self, 'product_detail')
+
+
+class Pin(Product):
+
+    size = models.CharField(max_length=255, verbose_name='Размер')
+    thematics = models.CharField(max_length=255, verbose_name='Тематика')
+
+    def __str__(self):
+        return "{} : {}".format(self.category.name, self.title)
+
+    def get_absolut_url(self):
+        return get_product_url(self, 'product_detail')
