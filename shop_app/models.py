@@ -1,9 +1,6 @@
-from PIL import Image      # Нужно для ограничения разрешения изображения
-
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.contenttypes.fields import GenericForeignKey
 from django.urls import reverse
 from django.utils import timezone
 
@@ -11,66 +8,10 @@ from django.utils import timezone
 User = get_user_model()
 
 
-def get_models_for_count(*model_names):
-    return [models.Count(model_name) for model_name in model_names]
-
-
-def get_product_url(obj, viewname):
-    ct_model = obj.__class__._meta.model_name
-    return reverse(viewname, kwargs={'ct_model': ct_model, 'slug': obj.slug})
-
-
-
-class LatestProductsManager:
-
-    @staticmethod
-    def get_products_for_main_page(*args, **kwargs):
-        with_respect_to = kwargs.get('with_respect_to')
-        products = []
-        ct_models = ContentType.objects.filter(model__in=args)
-        for ct_model in ct_models:
-            model_products = ct_model.model_class()._base_manager.all().order_by('-id')[:5]
-            products.extend(model_products)
-        if with_respect_to:
-            ct_model = ContentType.objects.filter(model=with_respect_to)
-            if ct_model.exists():
-                if with_respect_to in args:
-                    return sorted(
-                        products, key=lambda x: x.__class__._meta.model_name.startswith(with_respect_to), reverse=True
-                    )
-        return products
-
-
-class LatestProducts:
-
-    objects = LatestProductsManager()
-
-
-class CategoryManager(models.Manager):
-
-    CATEGORY_NAME_COUNT_NAME = {
-        'Пины': 'pin__count',
-        'Футболки': 'tshirt__count'
-    }
-
-    def get_queryset(self):
-        return super().get_queryset()
-
-    def get_categories_for_left_sidebar(self):
-        models = get_models_for_count('pin', 'tshirt')
-        qs = list(self.get_queryset().annotate(*models))
-        data = [
-            dict(name=c.name, url=c.get_absolute_url(), count=getattr(c, self.CATEGORY_NAME_COUNT_NAME[c.name]))
-            for c in qs
-        ]
-        return data
-
-
 class Category(models.Model):
 
     name = models.CharField(max_length=255, verbose_name='Имя категории')
     slug = models.SlugField(unique=True)
-    objects = CategoryManager()
 
     def __str__(self):
         return self.name
@@ -79,23 +20,7 @@ class Category(models.Model):
         return reverse('category_detail', kwargs={'slug': self.slug})
 
 
-# Нужно для ограничения разрешения изображения
-"""class MinResolutionErrorException(Exception):
-    pass
-
-
-class MaxResolutionErrorException(Exception):
-    pass"""
-
-
 class Product(models.Model):
-
-    MIN_RESOLUTION = (400, 400)
-    MAX_RESOLUTION = (4000, 4000)
-    MAX_IMAGE_SIZE = 10485760
-
-    class Meta:
-        abstract = True
 
     category = models.ForeignKey(Category, verbose_name='Категория', on_delete=models.CASCADE)
     title = models.CharField(max_length=255, verbose_name='Наименование')
@@ -107,40 +32,80 @@ class Product(models.Model):
     def __str__(self):
         return self.title
 
-
     def get_model_name(self):
         return self.__class__.__name__.lower()
 
-    # Нужно для ограничения разрешения изображения
-    """
-    def save(self, *args, **kwargs):
+    def get_absolute_url(self):
+        return reverse('product_detail', kwargs={'slug': self.slug})
 
-        image = self.image
-        img = Image.open(image)
-        min_widht, min_height = self.MIN_RESOLUTION
-        max_widht, max_height = self.MAX_RESOLUTION
-        if img.widht < min_widht or img.height < min_height:
-            raise MinResolutionErrorException('Разрешение изображения меньше минимального!')
-        if img.widht > max_widht or img.height > max_height:
-            raise MaxResolutionErrorException('Разрешение изображения больше максимального!')
-        super().save(*args, **kwargs)"""
+
+# class ProductFeatures(models.Model):
+#
+#     RADIO = 'radio'
+#     CHECKBOX = 'checkbox'
+#
+#     FILTER_TYPE_CHOICES = (
+#         (RADIO, 'Радиокнопка'),
+#         (CHECKBOX, 'Чекбокс')
+#     )
+#     feature_key = models.CharField(max_length=100, verbose_name='Ключ характеристики')
+#     feature_name = models.CharField(max_length=255, verbose_name='Наименование характеристики')
+#     category = models.ForeignKey(Category, verbose_name='Категория', on_delete=models.CASCADE)
+#     postfix_for_value = models.CharField(
+#         max_length=20,
+#         null=True,
+#         blank=True,
+#         verbose_name='Постфикс для значения',
+#         help_text=f'Например для характеристики "Часы работы" к значению можно добавить постфикс "часов", '
+#                   f'и как результат - значение "10 часов"'
+#     )
+#     use_in_filter = models.BooleanField(
+#         default=False,
+#         verbose_name='Использовать фильтрации товаров в шаблоне'
+#     )
+#     filter_type = models.CharField(
+#         max_length=20,
+#         verbose_name='Тип фильтра',
+#         default=CHECKBOX,
+#         choices=FILTER_TYPE_CHOICES
+#     )
+#     filter_measure = models.CharField(
+#         max_length=50,
+#         verbose_name='Единица измерения для фильтра',
+#         help_text='Единица измерения для конкртеного фильтра. Например "Частота процессора (Ghz)".'
+#                   ' Единицей измерения будет информация в скобках.'
+#     )
+#
+#     def __str__(self):
+#         return f'Категория - "{self.category.name}" | Характеристика - "{self.feature_name}" '
+#
+
+# class ProductFeatureValidators(models.Model):
+#
+#     category = models.ForeignKey(Category, verbose_name='Категория', on_delete=models.CASCADE)
+#     feature = models.ForeignKey(
+#         ProductFeatures,
+#         verbose_name='Характеристика',
+#         null=True,
+#         blank=True,
+#         on_delete=models.CASCADE
+#     )
+#     feature_value = models.CharField(max_length=255, unique=True, null=True, blank=True)
 
 
 class CartProduct(models.Model):
 
     user = models.ForeignKey('Customer', verbose_name='Покупатель', on_delete=models.CASCADE)
     cart = models.ForeignKey('Cart', verbose_name='Корзина', on_delete=models.CASCADE, related_name='related_products')
-    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
-    object_id = models.PositiveIntegerField()
-    content_object = GenericForeignKey('content_type', 'object_id')
+    product = models.ForeignKey(Product, verbose_name='Товар', on_delete=models.CASCADE)
     qty = models.PositiveIntegerField(default=1)
     final_price = models.DecimalField(max_digits=9, decimal_places=2, verbose_name='Общая цена')
 
     def __str__(self):
-        return "Продукт: {}(для корзины)".format(self.content_object.title)
+        return "Продукт: {}(для корзины)".format(self.product.title)
 
     def save(self, *args, **kwargs):
-        self.final_price = self.qty * self.content_object.price
+        self.final_price = self.qty * self.product.price
         super().save(*args, **kwargs)
 
 
@@ -156,14 +121,6 @@ class Cart(models.Model):
     def __str__(self):
         return str(self.id)
 
-    # def save(self, *args, **kwargs):
-    #     cart_data = self.products.aggregate(models.Sum('final_price'), models.Count('id'))
-    #     if cart_data.get('final_price__sum'):
-    #         self.final_price = cart_data['final_price__sum']
-    #     else:
-    #         self.final_price = 0
-    #     self.total_products = cart_data['id__count']
-
 
 class Customer(models.Model):
 
@@ -174,30 +131,6 @@ class Customer(models.Model):
 
     def __str__(self):
         return "Покупатель: {} {}".format(self.user.first_name, self.user.last_name)
-
-
-class Tshirt(Product):
-
-    size = models.CharField(max_length=255, verbose_name='Размер')
-    color = models.CharField(max_length=255, verbose_name='Цвет')
-
-    def __str__(self):
-        return "{} : {}".format(self.category.name, self.title)
-
-    def get_absolute_url(self):
-        return get_product_url(self, 'product_detail')
-
-
-class Pin(Product):
-
-    size = models.CharField(max_length=255, verbose_name='Размер')
-    thematics = models.CharField(max_length=255, verbose_name='Тематика')
-
-    def __str__(self):
-        return "{} : {}".format(self.category.name, self.title)
-
-    def get_absolute_url(self):
-        return get_product_url(self, 'product_detail')
 
 
 class Order(models.Model):
