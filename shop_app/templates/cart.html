@@ -4,6 +4,17 @@
 {% block content %}
 
 <h3 class="text-center mt-5 mb-5">Ваша корзина {% if not cart.products.count %}пуста{% endif %}</h3>
+{% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <strong>{{ message }}</strong>
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+    {% endfor %}
+{% endif %}
+{% if cart.products.count %}
 <table class="table">
   <thead>
     <tr>
@@ -24,7 +35,7 @@
           <td>
               <form action="{% url 'change_qty' ct_model=item.content_object.get_model_name slug=item.content_object.slug %}" method="POST">
               {% csrf_token %}
-              <input type="number" class="form-control" name="qty" style="width: 70px;" min="1" value="{{ item.qty }}">
+              <input type="number" class="form-control" name="qty" style="width: 70px;" min="1" max="9000" value="{{ item.qty }}">
                   <br>
               <input type="submit" class="btn btn-primary" value="Изменить кол-во">
             </form>
@@ -40,12 +51,10 @@
           <td>Итого:</td>
           <td>{{ cart.total_products }}</td>
           <td><strong>{{ cart.final_price }} руб.</strong></td>
-{#          <td><a href="{% url 'checkout' %}"><button class="btn btn-primary">Перейти к оформлению</button></a></td>#}
+          <td><a href="{% url 'checkout' %}"><button class="btn btn-primary">Перейти к оформлению</button></a></td>
         </tr>
 
   </tbody>
 </table>
-
-
-
+{% endif %}
 {% endblock content %}
